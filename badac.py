@@ -8,6 +8,10 @@ Created on Fri May  5 11:24:28 2017
 
 import numpy as np
 
+#class bhm_gauss:
+#    def __init__(self,):
+
+        
 def bhm(d,sigd,y,sigy,labels):
     """
     Returns the normalised log probability of belonging to each of 2 datasets,

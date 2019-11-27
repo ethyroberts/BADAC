@@ -1,47 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri May  5 11:24:28 2017
+Created on Wed Nov 13 13:53:48 2019
 
 @author: ethan
 """
 
 import numpy as np
 
-#class bhm_gauss:
-#    def __init__(self,):
 
+class BADAC:
+    def __init__(self, contamination):
+        self.contamination = contamination
         
-def bhm(d,sigd,y,sigy,labels):
-    """
-    Returns the normalised log probability of belonging to each of 2 datasets,
-    here type0 and type1.
+    def fit(self, X, Xerr, Y):
+        self.X = X
+        self.Xerr = Xerr
+        self.Y = Y
+        
+        self.class_list =  np.unique(self.Y)
+        self.nclasses = self.class_list.shape[0]
     
-    Input Parameters:
-    d: 1D array (observed data points)
-    sigd: 1D array (observed errorbars)
-    y: 2D array (template data points) - each row represents the i-th data curve
-    sigy: 2D array (template errorbars) - each row represents the i-th data curve
-    labels: 1D array with element format int (labels for input curves 'd')
-    
-    Output: 
-    P0-sumPi: Total normalised log probability of belonging to type 0
-    P1-sumPi: Total normalised log probability of belonging to type 1"""
-    
-    def Pi(di,sigdi,yi,sigyi):
-        """
-        Returns the probability of one point being similar to another point
-        Input parameters:
-        di: datum being measured
-        sigdi: datum errorbar
-        yi: training datum
-        sigyi: training datum errorbar
-        ybari: approximated mean for assumed distribution
-        Ryi: approximated errorbar for assumed distribution
+    def predict(self, Xtest, Xerrtest):
+        self.Xtest = Xtest
+        self.Xerrtest = Xerrtest
+        
+        self.ntest = len(self.Xtest)
+        
+        self.probmatrix = np.zeros(shape=[self.ntest,self.nclasses])
+        for self.i in range(self.nclasses):
+            self.index = np.where(self.Y == self.class_list[self.i])
             
-        Output:
-        p1-p2+p3: unnormalised log probability"""
-        
+            self.Xtrain = self.X[self.index]
+            self.Xerrtrain = self.Xerr[self.index]
+            
+            self.probmatrix[:,self.i] = maineq(self.Xtest, self.Xerrtest,
+                                               self.Xtrain, self.Xerrtrain)
+        return self.probmatrix
+    
+    def classify(self):
+        return self.probmatrix.argmax(axis=1)
+
+
+def maineq(Xtest, Xerrtest, Xtrain, Xerrtrain):
+    def Pi(di,sigdi,yi,sigyi):
         C1 = sigdi**-2
         C2 = sigyi**-2
         
@@ -50,49 +52,12 @@ def bhm(d,sigd,y,sigy,labels):
         p3 = 0.5 * ((di*C1 + yi*C2)**2) / (C1 + C2)
         return p1-p2+p3
     
-    """
-    #class 0
-    """
-    index0 = np.where(labels==0)
-    y0 = y[index0,:][0]
-    sigy0 = sigy[index0,:][0]
-    m0,n0 = np.shape(y0) #m number of training curves, n number of datapoints per curve
+    ntest = len(Xtest)
+    ntrain = len(Xtrain)
     
-    P0matrix = Pi(d,sigd,y0,sigy0)
-    P0array = np.sum(P0matrix,axis=1)    
-    
-    Ptau0 = 0.5
-    P0 = (np.log(np.sum(np.exp(np.float128(P0array))))) + np.log(Ptau0) - np.log(m0)
-    
-    """
-    #class 1
-    """
-    index1 = np.where(labels==1)
-    y1 = y[index1,:][0]
-    sigy1 = sigy[index1,:][0]
-    m1,n1 = np.shape(y1) #m number of training curves, n number of datapoints per curve
-    
-    P1matrix = Pi(d,sigd,y1,sigy1)
-    P1array = np.sum(P1matrix,axis=1)
-    
-    Ptau1 = 0.5
-    P1 = (np.log(np.sum(np.exp(np.float128(P1array))))) + np.log(Ptau1) - np.log(m1)
-    return P0,P1
-
-def bhm_window(d,sigd,y,sigy,labels,window):
-    n = len(d)
-    n_windows = n - window + 1
-    
-    P0 = np.empty(n_windows)
-    P1 = np.empty(n_windows)
-    
-    for i in range(n_windows):
-        P0[i],P1[i]=bhm(d[i:window+i],sigd[i:window+i],y[:,i:i+window],sigy[:,i:i+window],labels)
-    return P0,P1
-
-def bhm_normalised(d,sigd,y,sigy,labels):
-    p0,p1 = bhm(d,sigd,y,sigy,labels)
-    Ptot = np.log(np.exp(np.float128(p0)) + np.exp(np.float128(p1)))
-    P0 = p0 - Ptot
-    P1 = p1 - Ptot
-    return P0,P1
+    problist = np.zeros(ntest)
+    for i in range(ntest):
+        p = np.sum(Pi(Xtest[i], Xerrtest[i], Xtrain, Xerrtrain), axis=1)
+        P = np.sum(np.exp(np.float128(p)))
+        problist[i] = np.log(P) + np.log(0.5) - np.log(ntrain)
+    return problist
